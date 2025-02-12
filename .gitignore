@@ -42,7 +42,6 @@ next-env.d.ts
 
 # Public directory
 /public/
-# Inne typowe wykluczenia dla Next.js
 .next/
 node_modules/
 *.log
