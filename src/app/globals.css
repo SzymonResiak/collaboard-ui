@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #111827;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #fef7ff;
+    --foreground: #111827;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-nunito);
+}
+
+.droppable-active {
+  outline: 2px dashed #ccc;
+}
+
+.droppable-accept {
+  border: 2px dashed #00f;
+}
+
+/* Styl dla przeciąganego elementu - zawsze na wierzchu */
+[data-rbd-dragging-state='dragging'] .task-container {
+  position: fixed !important;
+  z-index: 1 !important;
+}
+
+/* Styl dla kontenera taska */
+.task-container {
+  position: relative;
+  z-index: 2;
+}
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  -webkit-border-radius: 5px;
+  border-radius: 5px;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  -webkit-border-radius: 5px;
+  border-radius: 5px;
+  -webkit-box-shadow: inset 0 0 6px rgba(46, 45, 45, 0.5);
+}
