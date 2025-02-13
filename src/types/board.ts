@@ -14,6 +14,12 @@ export interface Attachment {
   path: string;
 }
 
+export enum TaskPriority {
+  Low = 'Low',
+  Medium = 'Medium',
+  High = 'High',
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -24,6 +30,9 @@ export interface Task {
   board: string;
   checklists?: Checklist[];
   attachments?: Attachment[];
+  priority?: TaskPriority;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Column {
@@ -41,4 +50,4 @@ export interface Board {
   group: string;
   favourite: boolean;
   tasks: Task[];
-} 
+}

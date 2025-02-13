@@ -8,10 +8,10 @@ const config: Config = {
   ],
   theme: {
     screens: {
-      'cbTablet': '768px',
-      'cbDesktop': '1024px',
-      'cbDesktopM': '1440px',
-      'cbDesktopL': '1600px',
+      cbTablet: '768px',
+      cbDesktop: '1024px',
+      cbDesktopM: '1440px',
+      cbDesktopL: '1600px',
     },
     extend: {
       colors: {
@@ -21,19 +21,19 @@ const config: Config = {
         'primary-foreground': 'var(--primary-foreground)',
       },
       borderRadius: {
-        'cb-sm': '0.625rem',    // 10px
+        'cb-sm': '0.625rem', // 10px
         'cb-base': '0.9375rem', // 15px
-        'cb': '1.875rem',       // 30px
-        'cb-lg': '2.5rem',      // 40px
+        cb: '1.875rem', // 30px
+        'cb-lg': '2.5rem', // 40px
       },
       container: {
         center: true,
         padding: '1rem',
         screens: {
-          'cbTablet': '740px',
-          'cbDesktop': '980px',
-          'cbDesktopM': '1380px',
-          'cbDesktopL': '1536px',
+          cbTablet: '740px',
+          cbDesktop: '980px',
+          cbDesktopM: '1380px',
+          cbDesktopL: '1536px',
         },
       },
     },

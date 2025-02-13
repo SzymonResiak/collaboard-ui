@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 interface AvatarProps {
   name: string;
   image?: string;
@@ -11,33 +13,45 @@ const sizeClasses = {
   lg: 'w-10 h-10 text-base',
 };
 
-export function Avatar({ name, image, size = 'sm', columnColor = '#4A90E2' }: AvatarProps) {
+export function Avatar({
+  name,
+  image,
+  size = 'sm',
+  columnColor = '#4A90E2',
+}: AvatarProps) {
   const initials = name
     .split(' ')
     .map((n) => n[0])
     .join('')
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, name.includes(' ') ? 2 : 1);
 
-  const style = !image ? {
-    backgroundColor: `${columnColor}40`,
-    color: columnColor,
-  } : {};
+  const style = !image
+    ? {
+        backgroundColor: `${columnColor}20`,
+        color: '#111827',
+      }
+    : {};
 
   return (
     <div
-      className={`${sizeClasses[size]} rounded-full flex items-center justify-center font-medium ring-2 ring-white`}
+      className={`
+        rounded-full flex items-center justify-center
+        text-gray-900 font-medium
+        ${sizeClasses[size]}
+      `}
       style={style}
     >
       {image ? (
-        <img
+        <Image
           src={image}
           alt={name}
-          className="w-full h-full rounded-full object-cover"
+          fill
+          className="rounded-full object-cover bg-white"
         />
       ) : (
         <span>{initials}</span>
       )}
     </div>
   );
-} 
+}
