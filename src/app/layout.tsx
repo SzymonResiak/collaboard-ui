@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Nunito } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/NavbarWrapper';
+import { cn } from '@/lib/utils';
 
 const nunito = Nunito({
   subsets: ['latin'],
@@ -20,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${nunito.variable} antialiased`}>
+      <body className={cn(nunito.variable, 'h-screen flex flex-col overflow-hidden')}>
         <Navbar />
         {children}
       </body>
