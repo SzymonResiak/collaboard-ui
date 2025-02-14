@@ -51,3 +51,7 @@ export interface Board {
   favourite: boolean;
   tasks: Task[];
 }
+
+export interface BoardOrder {
+  [columnId: string]: string[]; // tablica ID tasków w kolejności
+}
