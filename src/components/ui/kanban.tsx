@@ -7,10 +7,14 @@ import {
   Droppable,
   DropResult,
 } from '@hello-pangea/dnd';
-import { Board, Task, TaskPriority, BoardOrder } from '../../types/board';
+import { Board, BoardOrder } from '../../types/board';
 import { Avatar } from './avatar';
-import { CheckSquare, Paperclip, Calendar } from 'lucide-react';
+import { CheckSquare, Paperclip, Calendar, ArrowLeft } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { TaskDialog } from '../dialogs/TaskDialog';
+import { Task, TaskPriority } from '@/types/task';
+import { Button } from './button';
+import Link from 'next/link';
 
 /* TODO: after api implemented at frontend.
   - przy dodaniu nowego taska trzeba go dodać jako pierwszy w danej kolumnie.
@@ -104,6 +108,110 @@ function KanbanTaskSkeleton() {
   );
 }
 
+function TaskCard({ task }: { task: Task }) {
+  const [open, setOpen] = useState(false);
+
+  const handleUpdateTask = async (updatedTask: Partial<Task>) => {
+    try {
+      console.log('Updating task:', { ...task, ...updatedTask });
+    } catch (error) {
+      console.error('Failed to update task:', error);
+    }
+  };
+
+  const MAX_VISIBLE_ASSIGNEES = 5;
+  const visibleAssignees =
+    task.assignees?.slice(0, MAX_VISIBLE_ASSIGNEES) || [];
+  const remainingCount = Math.max(
+    0,
+    (task.assignees?.length || 0) - MAX_VISIBLE_ASSIGNEES
+  );
+
+  return (
+    <>
+      <div
+        onClick={() => setOpen(true)}
+        className="bg-white p-3 rounded-cb-base shadow-sm select-none relative hover:shadow-md transition-shadow min-h-[140px] flex flex-col cursor-pointer"
+      >
+        <div className="flex justify-between items-center mb-2">
+          {task.priority && (
+            <span
+              className={`px-2 py-1 rounded-cb-sm text-xs font-medium ${getPriorityColor(
+                task.priority as TaskPriority
+              )}`}
+            >
+              {task.priority}
+            </span>
+          )}
+          {task.dueDate && (
+            <div className="flex items-center gap-1 text-xs">
+              <Calendar className="w-4 h-4 text-gray-500" />
+              <span
+                className={`px-2 py-0.5 rounded-cb-sm ${getDateStatusClasses(
+                  task.dueDate
+                )}`}
+              >
+                {getDaysUntil(task.dueDate)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <h4 className="font-semibold text-base truncate mb-4">{task.title}</h4>
+
+        <div className="mt-auto flex items-center justify-between">
+          <div className="flex gap-2">
+            {task.checklists && task.checklists.length > 0 && (
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <CheckSquare className="w-4 h-4" />
+                <span>{task.checklists.length}</span>
+              </div>
+            )}
+            {task.attachments && task.attachments.length > 0 && (
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <Paperclip className="w-4 h-4" />
+                <span>{task.attachments.length}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-row-reverse -space-x-1 space-x-reverse items-center">
+            {remainingCount > 0 && (
+              <div className="relative z-0 ml-2">
+                <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600 border border-white">
+                  {remainingCount > 99 ? '>99' : `+${remainingCount}`}
+                </div>
+              </div>
+            )}
+            {visibleAssignees.map((assignee, index) => (
+              <div
+                key={assignee.id}
+                className="relative hover:z-10"
+                style={{ zIndex: visibleAssignees.length - index }}
+              >
+                <Avatar
+                  name={assignee.name}
+                  image={assignee.avatar}
+                  size="sm"
+                  columnColor={task.status === 'TODO' ? '#4A90E2' : '#6B7280'}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <TaskDialog
+        mode="view"
+        task={task}
+        open={open}
+        onOpenChange={setOpen}
+        onSubmit={handleUpdateTask}
+      />
+    </>
+  );
+}
+
 export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
   const [board, setBoard] = useState(initialBoard);
   const [orderMap, setOrderMap] = useState<BoardOrder>({});
@@ -129,7 +237,7 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
   const columns: KanbanColumn[] = board.columns.map((column) => ({
     id: column.name,
     name: column.name,
-    color: column.color,
+    color: column.color || '#E5E7EB',
     tasks: board.tasks.filter((task) => task.status === column.name),
   }));
 
@@ -196,7 +304,13 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
 
   return (
     <div className="w-full h-full flex items-center justify-center overflow-hidden">
-      <div className="w-[98%] mx-auto bg-white rounded-t-cb-lg shadow-lg flex flex-col h-full">
+      <div className="w-[98%] mx-auto bg-white rounded-t-cb-lg shadow-2xl flex flex-col h-full relative">
+        <Button variant="ghost" className="absolute top-4 left-4" asChild>
+          <Link href="/boards" className="flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Go Back
+          </Link>
+        </Button>
         <div className="w-full flex flex-col h-full">
           <div className="p-6 text-center">
             <h1 className="text-2xl font-semibold">{board.name}</h1>
@@ -207,7 +321,7 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
             )}
           </div>
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="flex gap-4 w-full px-4 pb-6 select-none overflow-x-hidden justify-center h-full">
+            <div className="flex gap-10 w-full px-4 pb-6 select-none overflow-x-hidden justify-center h-full">
               {sortedColumns.map((column) => (
                 <Droppable key={column.name} droppableId={column.name}>
                   {(provided, snapshot) => (
@@ -231,7 +345,7 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
                     >
                       <div className="flex flex-col h-full">
                         <h3
-                          className="font-semibold mb-4 select-none sticky top-0 z-10 p-2 rounded-cb-base text-center text-2xl"
+                          className="font-semibold mb-4 select-none sticky top-0 z-10 p-2 rounded-cb text-center text-2xl"
                           style={{ backgroundColor: column.color + '40' }}
                         >
                           {column.name}
@@ -245,125 +359,14 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
                                   draggableId={task?.id || ''}
                                   index={index}
                                 >
-                                  {(provided, snapshot) => (
+                                  {(provided) => (
                                     <div
                                       ref={provided.innerRef}
                                       {...provided.draggableProps}
                                       {...provided.dragHandleProps}
-                                      className={`
-                                        bg-white p-3 rounded-cb-base shadow-sm select-none task-container relative 
-                                        ${
-                                          snapshot.isDragging
-                                            ? 'relative z-[1000]'
-                                            : 'z-[2]'
-                                        }
-                                        hover:shadow-md transition-shadow
-                                        min-h-[140px] flex flex-col
-                                      `}
-                                      style={{
-                                        ...provided.draggableProps.style,
-                                      }}
+                                      className="relative"
                                     >
-                                      <div className="flex justify-between items-start mb-2">
-                                        <h4 className="font-semibold select-none max-w-[75%] text-base truncate">
-                                          {task?.title}
-                                        </h4>
-                                        {task?.priority && (
-                                          <span
-                                            className={`
-                                              px-2 py-1 rounded-cb-sm text-xs font-medium shrink-0
-                                              ${getPriorityColor(task.priority)}
-                                            `}
-                                          >
-                                            {task?.priority}
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <div className="flex justify-between mb-2">
-                                        {task?.description && (
-                                          <p className="text-sm text-gray-600 mt-1 select-none max-w-[80%] overflow-hidden text-ellipsis max-h-[3em]">
-                                            {task?.description}
-                                          </p>
-                                        )}
-                                        <div className="flex flex-row-reverse ml-2 flex-shrink-0 self-start">
-                                          {task?.assignees.map(
-                                            (
-                                              assignee: string,
-                                              index: number,
-                                              arr: string[]
-                                            ) => {
-                                              if (index === 0) {
-                                                return (
-                                                  <div
-                                                    key={index}
-                                                    className="relative"
-                                                    style={{
-                                                      zIndex:
-                                                        arr.length - index,
-                                                    }}
-                                                  >
-                                                    <Avatar
-                                                      name={assignee}
-                                                      size="sm"
-                                                      columnColor={column.color}
-                                                    />
-                                                    {arr.length > 1 && (
-                                                      <div className="absolute -right-2 -bottom-2 bg-white text-gray-900 text-[10px] rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1 shadow-sm border border-gray-200">
-                                                        {arr.length > 99
-                                                          ? '>99'
-                                                          : `+${
-                                                              arr.length - 1
-                                                            }`}
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                );
-                                              }
-                                              return null;
-                                            }
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      <div className="mt-auto flex items-center justify-between">
-                                        <div className="flex gap-2">
-                                          {task?.checklists &&
-                                            task?.checklists.length > 0 && (
-                                              <div className="flex items-center gap-1 text-xs text-gray-500">
-                                                <CheckSquare className="w-4 h-4" />
-                                                <span>
-                                                  {task?.checklists.length}
-                                                </span>
-                                              </div>
-                                            )}
-                                          {task?.attachments &&
-                                            task?.attachments.length > 0 && (
-                                              <div className="flex items-center gap-1 text-xs text-gray-500">
-                                                <Paperclip className="w-4 h-4" />
-                                                <span>
-                                                  {task?.attachments.length}
-                                                </span>
-                                              </div>
-                                            )}
-                                        </div>
-
-                                        {task?.dueDate && (
-                                          <div className="flex items-center gap-1 text-xs">
-                                            <Calendar className="w-4 h-4 text-gray-500" />
-                                            <span
-                                              className={`
-                                              px-2 py-0.5 rounded-cb-sm
-                                              ${getDateStatusClasses(
-                                                task?.dueDate
-                                              )}
-                                            `}
-                                            >
-                                              {getDaysUntil(task?.dueDate)}
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
+                                      <TaskCard task={task} />
                                     </div>
                                   )}
                                 </Draggable>

@@ -1,17 +1,18 @@
 import Image from 'next/image';
 
+const sizeClasses = {
+  sm: 'w-6 h-6 text-xs',
+  md: 'w-8 h-8 text-sm',
+  lg: 'w-10 h-10 text-sm',
+};
+
 interface AvatarProps {
   name: string;
   image?: string;
   size?: 'sm' | 'md' | 'lg';
   columnColor?: string;
+  className?: string;
 }
-
-const sizeClasses = {
-  sm: 'w-6 h-6 text-xs',
-  md: 'w-8 h-8 text-sm',
-  lg: 'w-10 h-10 text-base',
-};
 
 export function Avatar({
   name,
@@ -19,12 +20,18 @@ export function Avatar({
   size = 'sm',
   columnColor = '#4A90E2',
 }: AvatarProps) {
-  const initials = name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, name.includes(' ') ? 2 : 1);
+  const getInitials = (name: string | undefined) => {
+    if (!name) return '';
+
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return '';
+
+    if (words.length === 1) {
+      return words[0].charAt(0).toUpperCase();
+    }
+
+    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+  };
 
   const style = !image
     ? {
@@ -41,6 +48,7 @@ export function Avatar({
         ${sizeClasses[size]}
       `}
       style={style}
+      title={name}
     >
       {image ? (
         <Image
@@ -50,7 +58,7 @@ export function Avatar({
           className="rounded-full object-cover bg-white"
         />
       ) : (
-        <span>{initials}</span>
+        <span>{getInitials(name)}</span>
       )}
     </div>
   );
