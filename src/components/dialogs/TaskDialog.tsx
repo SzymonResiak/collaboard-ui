@@ -181,16 +181,19 @@ export function TaskDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canSave = useMemo(() => {
-    if (availableBoards.length === 0) return false;
+    if (mode === 'create') {
+      if (availableBoards.length === 0) return false;
+      if (!selectedBoard) return false;
+      if (taskMode === 'GROUP' && !selectedGroup) return false;
+    }
 
-    if (!selectedBoard) return false;
-    if (taskMode === 'GROUP' && !selectedGroup) return false;
     if (!formData.title?.trim()) return false;
     if (formData.checklists?.some((checklist) => !checklist.name?.trim()))
       return false;
 
     return true;
   }, [
+    mode,
     availableBoards.length,
     selectedBoard,
     selectedGroup,
@@ -206,112 +209,118 @@ export function TaskDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4 flex-1 overflow-y-auto px-2">
-          <div className="flex items-center justify-center">
-            <div className="bg-gray-100 p-1 rounded-full flex">
-              <button
-                className={cn(
-                  'px-6 py-2 rounded-full text-sm font-medium transition-colors',
-                  taskMode === 'OWN'
-                    ? 'bg-black text-white'
-                    : 'bg-transparent text-black hover:bg-gray-200'
-                )}
-                onClick={() => handleModeChange('OWN')}
-              >
-                OWN
-              </button>
-              <button
-                className={cn(
-                  'px-6 py-2 rounded-full text-sm font-medium transition-colors',
-                  taskMode === 'GROUP'
-                    ? 'bg-black text-white'
-                    : 'bg-transparent text-black hover:bg-gray-200'
-                )}
-                onClick={() => handleModeChange('GROUP')}
-              >
-                GROUP
-              </button>
-            </div>
-          </div>
-
-          <div className="flex gap-4 w-full">
-            {taskMode === 'GROUP' && (
-              <div className="flex-1 space-y-2 min-w-0">
-                <Label className="flex items-center gap-1">
-                  Group
-                  <span className="text-black-500">*</span>
-                </Label>
-                <Select
-                  value={selectedGroup || ''}
-                  onValueChange={setSelectedGroup}
-                  disabled={mockGroups.length === 0}
-                >
-                  <SelectTrigger className="w-full bg-white">
-                    <SelectValue
-                      placeholder={
-                        mockGroups.length === 0
-                          ? 'No groups available'
-                          : 'Select a group'
-                      }
-                      className="truncate"
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mockGroups.map((group) => (
-                      <SelectItem
-                        key={group.id}
-                        value={group.id}
-                        className="truncate"
-                      >
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {mode === 'create' && (
+            <>
+              <div className="flex items-center justify-center">
+                <div className="bg-gray-100 p-1 rounded-full flex">
+                  <button
+                    className={cn(
+                      'w-24 py-2 text-sm font-medium transition-colors flex justify-center items-center',
+                      'first:rounded-l-full last:rounded-r-full',
+                      taskMode === 'OWN'
+                        ? 'bg-black text-white'
+                        : 'bg-transparent text-black hover:bg-gray-200'
+                    )}
+                    onClick={() => handleModeChange('OWN')}
+                  >
+                    OWN
+                  </button>
+                  <button
+                    className={cn(
+                      'w-24 py-2 text-sm font-medium transition-colors flex justify-center items-center',
+                      'first:rounded-l-full last:rounded-r-full',
+                      taskMode === 'GROUP'
+                        ? 'bg-black text-white'
+                        : 'bg-transparent text-black hover:bg-gray-200'
+                    )}
+                    onClick={() => handleModeChange('GROUP')}
+                  >
+                    GROUP
+                  </button>
+                </div>
               </div>
-            )}
 
-            <div
-              className={cn(
-                'space-y-2 min-w-0',
-                taskMode === 'GROUP' ? 'flex-1' : 'w-full'
-              )}
-            >
-              <Label className="flex items-center gap-1">
-                Board
-                <span className="text-black-500">*</span>
-              </Label>
-              <Select
-                value={selectedBoard || ''}
-                onValueChange={setSelectedBoard}
-                disabled={
-                  availableBoards.length === 0 ||
-                  (taskMode === 'GROUP' && !selectedGroup)
-                }
-              >
-                <SelectTrigger className="w-full bg-white">
-                  <SelectValue
-                    placeholder={
-                      availableBoards.length === 0
-                        ? 'No boards available'
-                        : 'Select a board'
-                    }
-                    className="truncate"
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableBoards.map((board) => (
-                    <SelectItem
-                      key={board.id}
-                      value={board.id}
-                      className="truncate"
+              <div className="flex gap-4 w-full">
+                {taskMode === 'GROUP' && (
+                  <div className="flex-1 space-y-2 min-w-0">
+                    <Label className="flex items-center gap-1">
+                      Group
+                      <span className="text-black-500">*</span>
+                    </Label>
+                    <Select
+                      value={selectedGroup || ''}
+                      onValueChange={setSelectedGroup}
+                      disabled={mockGroups.length === 0}
                     >
-                      {board.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+                      <SelectTrigger className="w-full bg-white">
+                        <SelectValue
+                          placeholder={
+                            mockGroups.length === 0
+                              ? 'No groups available'
+                              : 'Select a group'
+                          }
+                          className="truncate"
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mockGroups.map((group) => (
+                          <SelectItem
+                            key={group.id}
+                            value={group.id}
+                            className="truncate"
+                          >
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div
+                  className={cn(
+                    'space-y-2 min-w-0',
+                    taskMode === 'GROUP' ? 'flex-1' : 'w-full'
+                  )}
+                >
+                  <Label className="flex items-center gap-1">
+                    Board
+                    <span className="text-black-500">*</span>
+                  </Label>
+                  <Select
+                    value={selectedBoard || ''}
+                    onValueChange={setSelectedBoard}
+                    disabled={
+                      availableBoards.length === 0 ||
+                      (taskMode === 'GROUP' && !selectedGroup)
+                    }
+                  >
+                    <SelectTrigger className="w-full bg-white">
+                      <SelectValue
+                        placeholder={
+                          availableBoards.length === 0
+                            ? 'No boards available'
+                            : 'Select a board'
+                        }
+                        className="truncate"
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableBoards.map((board) => (
+                        <SelectItem
+                          key={board.id}
+                          value={board.id}
+                          className="truncate"
+                        >
+                          {board.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </>
+          )}
 
           <TaskFields
             task={formData as Task}

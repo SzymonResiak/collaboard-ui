@@ -120,7 +120,6 @@ function ChecklistSection({
                 newChecklists[index].items[itemIndex].item = e.target.value;
                 onChange?.('checklists', newChecklists);
 
-                // Jeśli to ostatni element i użytkownik wpisuje tekst, dodaj nowy pusty element
                 if (
                   itemIndex === checklist.items.length - 1 &&
                   e.target.value

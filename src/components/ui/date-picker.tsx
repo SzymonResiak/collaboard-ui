@@ -26,18 +26,19 @@ export function DatePicker({ value, onChange, label }: DatePickerProps) {
       )}
       <Popover>
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
+          <button
+            type="button"
             className={cn(
-              'w-full justify-between text-left font-normal rounded-md bg-white',
+              'flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+              'justify-between items-center',
               !value && 'text-muted-foreground'
             )}
           >
             <span>{value ? format(value, 'dd/MM/yyyy') : 'Pick a date'}</span>
             <CalendarIcon className="h-4 w-4" />
-          </Button>
+          </button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 bg-white" align="end">
+        <PopoverContent className="w-auto p-0 bg-white z-50" align="end">
           <Calendar
             mode="single"
             selected={value}
