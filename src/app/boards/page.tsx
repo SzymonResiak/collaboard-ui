@@ -1,13 +1,14 @@
 'use client';
 
 import { PageContainer } from '@/components/ui/page-container';
-import { mockBoards } from '@/mocks/groups';
 import { BoardCard } from '@/components/cards/board-card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Board } from '@/types/board';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const BOARDS_PER_PAGE = 12;
 
@@ -35,9 +36,31 @@ function BoardSkeleton() {
 }
 
 export default function BoardsPage() {
-  const [boards, setBoards] = useState<Board[]>(mockBoards);
+  const router = useRouter();
+  const { user } = useCurrentUser();
+  const [boards, setBoards] = useState<Board[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchUserAndBoards = async () => {
+      try {
+        const boardsResponse = await fetch('/api/boards');
+        const boardsData = await boardsResponse.json();
+
+        if (boardsData.error) {
+          console.error('Error fetching boards:', boardsData.error);
+          return;
+        }
+
+        setBoards(boardsData);
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    };
+
+    fetchUserAndBoards();
+  }, []);
 
   const sortedBoards = useMemo(() => {
     return [...boards].sort((a, b) => {
@@ -54,10 +77,15 @@ export default function BoardsPage() {
     currentPage * BOARDS_PER_PAGE
   );
 
-  const toggleFavourite = (boardId: string) => {
-    setBoards(
-      boards.map((board) =>
-        board.id === boardId ? { ...board, favourite: !board.favourite } : board
+  const handleFavouriteChange = (
+    boardId: string,
+    newFavouriteValue: boolean
+  ) => {
+    setBoards((prevBoards) =>
+      prevBoards.map((board) =>
+        board.id === boardId
+          ? { ...board, favourite: newFavouriteValue }
+          : board
       )
     );
   };
@@ -101,8 +129,23 @@ export default function BoardsPage() {
                         }}
                       >
                         <BoardCard
-                          board={board}
-                          onFavoriteToggle={() => toggleFavourite(board.id)}
+                          id={board.id}
+                          name={board.name}
+                          description={board.description}
+                          color={board.color}
+                          columns={board.columns || []}
+                          tasks={board.tasks || []}
+                          admins={board.admins}
+                          currentUserId={user?.id || ''}
+                          favourite={board.favourite}
+                          onFavouriteChange={(newValue: boolean) =>
+                            handleFavouriteChange(board.id, newValue)
+                          }
+                          onClick={() =>
+                            router.push(
+                              `/boards/${encodeURIComponent(board.name)}`
+                            )
+                          }
                         />
                       </motion.div>
                     ))}

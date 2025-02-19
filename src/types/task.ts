@@ -1,16 +1,16 @@
 import { UserDto } from './user';
 
 export interface Task {
-  id: string;
+  id?: string;
   title: string;
-  description: string;
-  canEdit?: boolean;
-  status: string;
-  assignees: UserDto[];
-  dueDate: Date;
-  board: string;
+  description?: string;
+  dueDate?: string;
+  assignees: string[];
   checklists?: Checklist[];
   attachments?: Attachment[];
+  canEdit?: boolean;
+  status: string;
+  board: string;
   priority?: TaskPriority;
 }
 

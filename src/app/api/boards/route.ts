@@ -1,9 +1,36 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
 export async function GET() {
-  return NextResponse.json({ message: 'Get all boards' });
-}
+  try {
+    const cookieStore = cookies();
+    const token = (await cookieStore).get('accessToken');
 
-export async function POST() {
-  return NextResponse.json({ message: 'Create new board' });
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/boards`, {
+      headers: {
+        Authorization: `Bearer ${token.value}`,
+        'Cache-Control': 'must-revalidate',
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: data.error || 'Failed to fetch boards' },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json(data);
+  } catch (err) {
+    return NextResponse.json(
+      { error: 'An error occurred while fetching boards', err },
+      { status: 500 }
+    );
+  }
 }

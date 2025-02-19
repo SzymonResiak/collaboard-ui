@@ -12,14 +12,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { mockBoards, mockGroups } from '@/mocks/groups';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { TaskFields } from './TaskFields';
 import { Button } from '@/components/ui/button';
 import { Task } from '@/types/task';
 import { Paperclip, Check } from 'lucide-react';
 import { Checklist, ChecklistItem } from '@/types/task';
 import { cn } from '@/lib/utils';
+import { useResourceCache, updateCache } from '@/hooks/useResourceCache';
+import { Board } from '@/types/board';
+import { Group } from '@/types/group';
 
 type TaskDialogMode = 'create' | 'view' | 'edit';
 
@@ -46,19 +48,29 @@ export function TaskDialog({
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedBoard, setSelectedBoard] = useState<string | null>(null);
 
+  const { data: groups, isLoading: isLoadingGroups } = useResourceCache<Group>(
+    '/api/groups',
+    []
+  );
+  const {
+    data: boards,
+    isLoading: isLoadingBoards,
+    refresh: refreshBoards,
+  } = useResourceCache<Board>('/api/boards', []);
+
   const availableGroups = useMemo(() => {
-    return mockGroups;
-  }, []);
+    return groups;
+  }, [groups]);
 
   const availableBoards = useMemo(() => {
     if (taskMode === 'OWN') {
-      return mockBoards.filter((board) => !board.group);
+      return boards.filter((board) => !board.group);
     }
     if (selectedGroup) {
-      return mockBoards.filter((board) => board.group === selectedGroup);
+      return boards.filter((board) => board.group === selectedGroup);
     }
     return [];
-  }, [taskMode, selectedGroup]);
+  }, [taskMode, selectedGroup, boards]);
 
   useEffect(() => {
     if (taskMode === 'GROUP' && availableGroups.length === 1) {
@@ -155,7 +167,46 @@ export function TaskDialog({
     onOpenChange(false);
   };
 
-  const handleSubmit = () => {
+  const updateLocalBoards = useCallback(
+    (newTask: Task) => {
+      const boardToUpdate = boards.find((board) => board.id === selectedBoard);
+      if (!boardToUpdate) return;
+
+      const updatedBoard = {
+        ...boardToUpdate,
+        tasks: [newTask, ...boardToUpdate.tasks],
+      };
+
+      const cachedBoards = boards.map((board) =>
+        board.id === selectedBoard ? updatedBoard : board
+      );
+
+      // Aktualizuj tylko cache
+      updateCache('/api/boards', cachedBoards);
+
+      // Aktualizuj kolejność zadań w localStorage
+      const orderKey = `board-order-${selectedBoard}`;
+      const currentOrder = JSON.parse(localStorage.getItem(orderKey) || '{}');
+
+      const firstColumnName = boardToUpdate.columns[0].name;
+
+      const updatedOrder = {
+        ...currentOrder,
+        [firstColumnName]: [
+          newTask.id,
+          ...(currentOrder[firstColumnName] || []),
+        ],
+      };
+
+      localStorage.setItem(orderKey, JSON.stringify(updatedOrder));
+
+      // Wywołaj refresh tylko raz
+      refreshBoards();
+    },
+    [boards, selectedBoard, refreshBoards]
+  );
+
+  const handleSubmit = async () => {
     const newErrors = {
       title: !formData.title?.trim(),
       checklistNames:
@@ -172,9 +223,77 @@ export function TaskDialog({
       return;
     }
 
-    if (onSubmit) {
-      onSubmit(formData);
-      handleClose();
+    // Zamknij dialog od razu
+    handleClose();
+
+    try {
+      // Przygotuj dane zadania
+      const { attachments, id, canEdit, board, status, ...restData } = formData;
+      const taskData = {
+        ...restData,
+        board: selectedBoard as string,
+        status: selectedBoardData?.columns[0].name as string,
+        assignees: taskMode === 'OWN' ? [] : formData.assignees || [],
+      };
+
+      // Wyślij request do API
+      const response = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(taskData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create task');
+      }
+
+      const createdTask = await response.json();
+
+      // Natychmiast zaktualizuj lokalny stan
+      const boardToUpdate = boards.find((board) => board.id === selectedBoard);
+      if (boardToUpdate) {
+        const updatedBoard = {
+          ...boardToUpdate,
+          tasks: [createdTask, ...boardToUpdate.tasks],
+        };
+
+        const cachedBoards = boards.map((board) =>
+          board.id === selectedBoard ? updatedBoard : board
+        );
+
+        // Zaktualizuj cache
+        updateCache('/api/boards', cachedBoards);
+
+        // Aktualizuj kolejność zadań w localStorage
+        const orderKey = `board-order-${selectedBoard}`;
+        const currentOrder = JSON.parse(localStorage.getItem(orderKey) || '{}');
+        const firstColumnName = boardToUpdate.columns[0].name;
+
+        const updatedOrder = {
+          ...currentOrder,
+          [firstColumnName]: [
+            createdTask.id,
+            ...(currentOrder[firstColumnName] || []),
+          ],
+        };
+
+        localStorage.setItem(orderKey, JSON.stringify(updatedOrder));
+      }
+
+      // Wywołaj callback onSubmit jeśli istnieje
+      if (onSubmit) {
+        onSubmit(createdTask);
+      }
+
+      // Odśwież dane z serwera po krótkim opóźnieniu
+      setTimeout(() => {
+        refreshBoards();
+      }, 500);
+    } catch (error) {
+      console.error('Error creating task:', error);
+      // Możesz tutaj dodać obsługę błędów, np. pokazanie komunikatu użytkownikowi
     }
   };
 
@@ -200,6 +319,15 @@ export function TaskDialog({
     taskMode,
     formData,
   ]);
+
+  const selectedBoardData = useMemo(() => {
+    return boards.find((board) => board.id === selectedBoard);
+  }, [boards, selectedBoard]);
+
+  const selectedGroupData = useMemo(() => {
+    if (!selectedBoardData?.group) return null;
+    return groups.find((group) => group.id === selectedBoardData.group);
+  }, [groups, selectedBoardData]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -250,12 +378,12 @@ export function TaskDialog({
                     <Select
                       value={selectedGroup || ''}
                       onValueChange={setSelectedGroup}
-                      disabled={mockGroups.length === 0}
+                      disabled={groups.length === 0}
                     >
                       <SelectTrigger className="w-full bg-white">
                         <SelectValue
                           placeholder={
-                            mockGroups.length === 0
+                            groups.length === 0
                               ? 'No groups available'
                               : 'Select a group'
                           }
@@ -263,7 +391,7 @@ export function TaskDialog({
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockGroups.map((group) => (
+                        {groups.map((group) => (
                           <SelectItem
                             key={group.id}
                             value={group.id}
@@ -327,6 +455,8 @@ export function TaskDialog({
             isEditing={isEditing}
             onChange={handleFieldChange}
             validationErrors={validationErrors}
+            availableAssignees={selectedGroupData?.members || []}
+            mode={taskMode}
           />
         </div>
 
@@ -404,6 +534,12 @@ export function TaskDialog({
             )}
           </div>
         </div>
+
+        {(isLoadingGroups || isLoadingBoards) && (
+          <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
+            <div className="animate-spin">Loading...</div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

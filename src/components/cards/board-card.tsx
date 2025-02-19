@@ -1,20 +1,40 @@
 'use client';
 
-import { Board } from '@/types/board';
+import { Board, Column } from '@/types/board';
 import { Heart, MoreVertical } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useRouter } from 'next/navigation';
+import { Task } from '@/types/task';
 
 interface BoardCardProps {
-  board: Board;
-  onFavoriteToggle: () => void;
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  columns: Column[];
+  tasks: Task[];
+  admins: string[];
+  currentUserId: string;
+  favourite: boolean;
+  onFavouriteChange: (newValue: boolean) => void;
+  onClick: () => void;
 }
 
-export function BoardCard({ board, onFavoriteToggle }: BoardCardProps) {
+export function BoardCard({
+  id,
+  name,
+  description,
+  color,
+  columns,
+  tasks,
+  favourite,
+  onFavouriteChange,
+  onClick,
+}: BoardCardProps) {
   const router = useRouter();
 
   const getTaskCountByColumn = (columnName: string) => {
-    return board.tasks.filter((task) => task.status === columnName).length;
+    return tasks.filter((task) => task.status === columnName).length;
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -23,7 +43,41 @@ export function BoardCard({ board, onFavoriteToggle }: BoardCardProps) {
       e.stopPropagation();
       return;
     }
-    router.push(`/boards/${board.id}`);
+    router.push(`/boards/${encodeURIComponent(name)}`);
+  };
+
+  const handleFavouriteClick = async (
+    e: React.MouseEvent,
+    newValue: boolean
+  ) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(`/api/boards/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          favourite: newValue,
+        }),
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(
+          `Failed to update board: ${response.status} ${response.statusText}`
+        );
+      }
+
+      onFavouriteChange(newValue);
+    } catch (error) {
+      console.error('Error updating board favourite status:', error);
+    }
   };
 
   return (
@@ -31,26 +85,23 @@ export function BoardCard({ board, onFavoriteToggle }: BoardCardProps) {
       onClick={handleClick}
       className="rounded-cb-lg p-4 shadow-sm hover:shadow-md transition-shadow h-[16rem] w-[30rem] flex flex-col cursor-pointer"
       style={{
-        backgroundColor: board.color,
+        backgroundColor: color,
       }}
     >
       <div className="flex items-start justify-between relative z-10">
         <div className="flex-1 min-w-0 pr-2">
-          <h3 className="font-semibold text-2xl line-clamp-2">{board.name}</h3>
+          <h3 className="font-semibold text-2xl line-clamp-2">{name}</h3>
         </div>
         <div className="flex items-start gap-2 flex-shrink-0">
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              onFavoriteToggle();
-            }}
+            onClick={(e) => handleFavouriteClick(e, !favourite)}
           >
             <Heart
               className={`h-5 w-5 ${
-                board.favourite ? 'fill-black text-black' : 'text-black'
+                favourite ? 'fill-black text-black' : 'text-black'
               }`}
             />
           </Button>
@@ -65,10 +116,10 @@ export function BoardCard({ board, onFavoriteToggle }: BoardCardProps) {
         </div>
       </div>
 
-      <p className="text-gray-600 mt-4 truncate">{board.description}</p>
+      <p className="text-gray-600 mt-4 truncate">{description}</p>
 
       <div className="mt-auto">
-        {board.columns.map((column) => {
+        {columns.map((column) => {
           const count = getTaskCountByColumn(column.name);
           const textColor = count > 0 ? 'text-black' : 'text-gray-600';
 

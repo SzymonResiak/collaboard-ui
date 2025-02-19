@@ -1,13 +1,13 @@
 'use client';
 
 import { PageContainer } from '@/components/ui/page-container';
-import { mockGroups } from '@/mocks/groups';
 import { GroupCard } from '@/components/cards/group-card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Group } from '@/types/group';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 const GROUPS_PER_PAGE = 12;
 
@@ -31,9 +31,30 @@ function GroupSkeleton() {
 }
 
 export default function GroupsPage() {
-  const [groups, setGroups] = useState<Group[]>(mockGroups);
+  const router = useRouter();
+  const [groups, setGroups] = useState<Group[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const response = await fetch('/api/groups');
+        const data = await response.json();
+
+        if (data.error) {
+          console.error('Error fetching groups:', data.error);
+          return;
+        }
+
+        setGroups(data);
+      } catch (error) {
+        console.error('Error fetching groups:', error);
+      }
+    };
+
+    fetchGroups();
+  }, []);
 
   const sortedGroups = useMemo(() => {
     return [...groups].sort((a, b) => {
@@ -99,6 +120,11 @@ export default function GroupsPage() {
                         <GroupCard
                           group={group}
                           onFavoriteToggle={() => toggleFavourite(group.id)}
+                          onClick={() =>
+                            router.push(
+                              `/groups/${encodeURIComponent(group.name)}`
+                            )
+                          }
                         />
                       </motion.div>
                     ))}

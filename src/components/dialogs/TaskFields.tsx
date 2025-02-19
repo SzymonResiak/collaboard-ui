@@ -1,14 +1,20 @@
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
-import { MultiSelect } from '@/components/ui/multi-select';
 import { Avatar } from '@/components/ui/avatar';
-import { mockUsers } from '@/mocks/boards';
 import { truncateName } from '@/lib/utils';
 import { CheckSquare, Paperclip, X, Trash2 } from 'lucide-react';
 import React from 'react';
 import { Task } from '@/types/task';
 import { Checklist } from '@/types/task';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface TaskFieldsProps {
   task?: Task;
@@ -18,6 +24,8 @@ interface TaskFieldsProps {
     title: boolean;
     checklistNames: number[];
   };
+  availableAssignees: string[];
+  mode?: 'OWN' | 'GROUP';
 }
 
 interface ChecklistSectionProps {
@@ -158,6 +166,8 @@ export function TaskFields({
   isEditing,
   onChange,
   validationErrors,
+  availableAssignees,
+  mode = 'GROUP',
 }: TaskFieldsProps) {
   if (isEditing) {
     return (
@@ -171,12 +181,60 @@ export function TaskFields({
             validationErrors?.title ? 'border-red-200 focus:border-red-300' : ''
           }
         />
-        <MultiSelect
-          label="Assignees"
-          selectedUsers={task?.assignees || []}
-          onChange={(users) => onChange?.('assignees', users)}
-          options={mockUsers}
-        />
+        {mode === 'GROUP' && (
+          <div className="space-y-2">
+            <Label>Assignees</Label>
+            <Select
+              defaultValue={task?.assignees?.[0]}
+              onValueChange={(value) => {
+                onChange?.('assignees', [value]);
+              }}
+              disabled={!isEditing || availableAssignees.length === 0}
+            >
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue
+                  placeholder={
+                    availableAssignees.length === 0
+                      ? 'No available assignees'
+                      : 'Select assignees'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {availableAssignees.map((userId) => (
+                  <SelectItem key={userId} value={userId}>
+                    <div className="flex items-center gap-2">
+                      <span>{userId}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {Array.isArray(task?.assignees) && task.assignees.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {task.assignees.map((userId) => (
+                  <div
+                    key={userId}
+                    className="flex items-center gap-1 bg-gray-100 text-gray-700 rounded-full px-2 py-1 text-sm"
+                  >
+                    <span>{userId}</span>
+                    <button
+                      onClick={() => {
+                        const newAssignees = task.assignees.filter(
+                          (id) => id !== userId
+                        );
+                        onChange?.('assignees', newAssignees);
+                      }}
+                      className="ml-1 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <Textarea
           label="Description"
           value={task?.description}
@@ -185,8 +243,8 @@ export function TaskFields({
         />
         <DatePicker
           label="Due date"
-          value={task?.dueDate}
-          onChange={(date) => onChange?.('dueDate', date)}
+          value={task?.dueDate ? new Date(task.dueDate) : undefined}
+          onChange={(date) => onChange?.('dueDate', date?.toISOString())}
         />
 
         {task?.checklists && task.checklists.length > 0 && (
@@ -255,25 +313,27 @@ export function TaskFields({
           Due date: {new Date(task.dueDate).toLocaleDateString('en-GB')}
         </div>
       )}
-      {task?.assignees && task.assignees.length > 0 && (
-        <div className="space-y-1">
-          <span className="text-sm text-gray-500">Assignees:</span>
-          <div className="flex flex-wrap gap-2">
-            {task.assignees.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center gap-1 bg-gray-50 text-gray-700 rounded-full pr-2 max-w-[150px] overflow-hidden"
-                title={user.name}
-              >
-                <Avatar name={user.name} size="sm" />
-                <span className="text-xs truncate flex-1 pl-1">
-                  {truncateName(user.name, 15)}
-                </span>
-              </div>
-            ))}
+      {mode === 'GROUP' &&
+        Array.isArray(task?.assignees) &&
+        task.assignees.length > 0 && (
+          <div className="space-y-1">
+            <span className="text-sm text-gray-500">Assignees:</span>
+            <div className="flex flex-wrap gap-2">
+              {task.assignees.map((userId) => (
+                <div
+                  key={userId}
+                  className="flex items-center gap-1 bg-gray-50 text-gray-700 rounded-full pr-2 max-w-[150px] overflow-hidden"
+                  title={userId}
+                >
+                  <Avatar name={userId} size="sm" />
+                  <span className="text-xs truncate flex-1 pl-1">
+                    {truncateName(userId, 15)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
       {task?.checklists && task.checklists.length > 0 && (
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-700">

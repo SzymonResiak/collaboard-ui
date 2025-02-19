@@ -4,13 +4,20 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Plus } from 'lucide-react';
-import { mockCurrentUser } from '@/mocks/boards';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TaskDialog } from '@/components/dialogs/TaskDialog';
 import { CopyToClipboard } from '@/components/ui/copy-to-clipboard';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const Navbar = () => {
+  const { user, fetchUser, isLoading } = useCurrentUser();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  useEffect(() => {
+    fetchUser();
+  }, []);
+
+  if (isLoading) return null; // lub jakiś loading spinner
 
   return (
     <nav>
@@ -23,16 +30,14 @@ const Navbar = () => {
               asChild
             >
               <Link href="/user">
-                <Avatar name={mockCurrentUser.name} size="lg" />
+                <Avatar name={user?.name} size="lg" />
               </Link>
             </Button>
             <div className="flex flex-col items-start">
-              <span className="text-sm font-medium">
-                {mockCurrentUser.name}
-              </span>
+              <span className="text-sm font-medium">{user?.name}</span>
               <div className="flex items-center gap-1 text-gray-500">
-                <CopyToClipboard value={mockCurrentUser.memberCode}>
-                  <span className="text-xs">#{mockCurrentUser.memberCode}</span>
+                <CopyToClipboard value={user?.memberCode}>
+                  <span className="text-xs">#{user?.memberCode}</span>
                 </CopyToClipboard>
               </div>
             </div>
