@@ -2,6 +2,12 @@ import { io, Socket } from 'socket.io-client';
 import { Board } from '@/types/board';
 import { Task } from '@/types/task';
 
+interface WebSocketMessage {
+  type: string;
+  data: any;
+  source?: 'websocket' | 'local';
+}
+
 /**
  * Service handling real-time communication with the server using WebSocket.
  * Manages board updates, task changes, and connection state.
@@ -77,12 +83,17 @@ export class WebSocketService {
   }
 
   onTaskUpdate(
-    callback: (data: { type: 'CREATE' | 'UPDATE'; task: Task }) => void
+    callback: (data: {
+      type: 'CREATE' | 'UPDATE';
+      task: Task;
+      source?: 'websocket' | 'local';
+    }) => void
   ) {
     this.socket.on('taskUpdated', (data) => {
       callback({
         type: data.operation as 'CREATE' | 'UPDATE',
         task: data.task,
+        source: 'websocket',
       });
     });
   }
@@ -98,5 +109,10 @@ export class WebSocketService {
     if (this.socket) {
       this.socket.disconnect();
     }
+  }
+
+  handleMessage(message: MessageEvent) {
+    const data: WebSocketMessage = JSON.parse(message.data);
+    data.source = 'websocket';
   }
 }
