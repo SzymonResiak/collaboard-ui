@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { useResourceCache, updateCache } from '@/hooks/useResourceCache';
 import { Board } from '@/types/board';
 import { Group } from '@/types/group';
+import { debounce } from 'lodash';
 
 type TaskDialogMode = 'create' | 'view' | 'edit';
 
@@ -167,6 +168,13 @@ export function TaskDialog({
     onOpenChange(false);
   };
 
+  const debouncedUpdateCache = useCallback(
+    debounce((path: string, data: any) => {
+      updateCache(path, data);
+    }, 500),
+    []
+  );
+
   const updateLocalBoards = useCallback(
     (newTask: Task) => {
       const boardToUpdate = boards.find((board) => board.id === selectedBoard);
@@ -181,10 +189,8 @@ export function TaskDialog({
         board.id === selectedBoard ? updatedBoard : board
       );
 
-      // Aktualizuj tylko cache
-      updateCache('/api/boards', cachedBoards);
+      debouncedUpdateCache('/api/boards', cachedBoards);
 
-      // Aktualizuj kolejność zadań w localStorage
       const orderKey = `board-order-${selectedBoard}`;
       const currentOrder = JSON.parse(localStorage.getItem(orderKey) || '{}');
 
@@ -200,10 +206,9 @@ export function TaskDialog({
 
       localStorage.setItem(orderKey, JSON.stringify(updatedOrder));
 
-      // Wywołaj refresh tylko raz
       refreshBoards();
     },
-    [boards, selectedBoard, refreshBoards]
+    [boards, selectedBoard, refreshBoards, debouncedUpdateCache]
   );
 
   const handleSubmit = async () => {
@@ -223,11 +228,9 @@ export function TaskDialog({
       return;
     }
 
-    // Zamknij dialog od razu
     handleClose();
 
     try {
-      // Przygotuj dane zadania
       const { attachments, id, canEdit, board, status, ...restData } = formData;
       const taskData = {
         ...restData,
@@ -236,7 +239,6 @@ export function TaskDialog({
         assignees: taskMode === 'OWN' ? [] : formData.assignees || [],
       };
 
-      // Wyślij request do API
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: {
@@ -251,49 +253,17 @@ export function TaskDialog({
 
       const createdTask = await response.json();
 
-      // Natychmiast zaktualizuj lokalny stan
-      const boardToUpdate = boards.find((board) => board.id === selectedBoard);
-      if (boardToUpdate) {
-        const updatedBoard = {
-          ...boardToUpdate,
-          tasks: [createdTask, ...boardToUpdate.tasks],
-        };
+      updateLocalBoards(createdTask);
 
-        const cachedBoards = boards.map((board) =>
-          board.id === selectedBoard ? updatedBoard : board
-        );
-
-        // Zaktualizuj cache
-        updateCache('/api/boards', cachedBoards);
-
-        // Aktualizuj kolejność zadań w localStorage
-        const orderKey = `board-order-${selectedBoard}`;
-        const currentOrder = JSON.parse(localStorage.getItem(orderKey) || '{}');
-        const firstColumnName = boardToUpdate.columns[0].name;
-
-        const updatedOrder = {
-          ...currentOrder,
-          [firstColumnName]: [
-            createdTask.id,
-            ...(currentOrder[firstColumnName] || []),
-          ],
-        };
-
-        localStorage.setItem(orderKey, JSON.stringify(updatedOrder));
-      }
-
-      // Wywołaj callback onSubmit jeśli istnieje
       if (onSubmit) {
         onSubmit(createdTask);
       }
 
-      // Odśwież dane z serwera po krótkim opóźnieniu
       setTimeout(() => {
         refreshBoards();
       }, 500);
     } catch (error) {
       console.error('Error creating task:', error);
-      // Możesz tutaj dodać obsługę błędów, np. pokazanie komunikatu użytkownikowi
     }
   };
 

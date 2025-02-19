@@ -1,19 +1,22 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const cookieStore = cookies();
-    const token = (await cookieStore).get('accessToken');
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken');
 
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/boards`, {
+    const { searchParams } = new URL(req.url);
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/boards?${searchParams}`;
+
+    const response = await fetch(apiUrl, {
       headers: {
         Authorization: `Bearer ${token.value}`,
-        'Cache-Control': 'must-revalidate',
+        'Cache-Control': 'no-store, must-revalidate',
       },
     });
 

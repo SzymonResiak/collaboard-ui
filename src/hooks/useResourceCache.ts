@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 interface CacheItem<T> {
   data: T[];
@@ -32,14 +32,20 @@ export function useResourceCache<T>(
   const [data, setData] = useState<T[]>(initialData);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const fetchedRef = useRef(false); // Dodajemy ref do śledzenia czy już pobraliśmy dane
 
-  // Dodaj subskrybenta przy montowaniu komponentu
   useEffect(() => {
     if (!subscribers[resourceUrl]) {
       subscribers[resourceUrl] = new Set();
     }
 
     subscribers[resourceUrl].add(setData);
+
+    // Pobierz dane tylko jeśli jeszcze nie były pobrane
+    if (!fetchedRef.current) {
+      fetchData(false);
+      fetchedRef.current = true;
+    }
 
     return () => {
       subscribers[resourceUrl].delete(setData);
@@ -79,10 +85,6 @@ export function useResourceCache<T>(
     },
     [resourceUrl]
   );
-
-  useEffect(() => {
-    fetchData(false);
-  }, []);
 
   return {
     data,

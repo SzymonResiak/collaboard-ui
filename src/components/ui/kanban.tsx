@@ -251,6 +251,54 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
       try {
         if (!board?.id) return;
 
+        if (!isInitialized.current) {
+          const params = new URLSearchParams();
+          params.append('ids', board.id);
+          const boardResponse = await fetch(`/api/boards?${params}`);
+
+          if (boardResponse.ok) {
+            const boards = await boardResponse.json();
+            const updatedBoard = boards.find((b: Board) => b.id === board.id);
+            if (updatedBoard) {
+              setBoard(updatedBoard);
+              onBoardChange?.(updatedBoard);
+
+              const savedOrder = localStorage.getItem(
+                `board-order-${board.id}`
+              );
+              const currentOrder: BoardOrder = savedOrder
+                ? JSON.parse(savedOrder)
+                : {};
+
+              const newOrderMap = { ...currentOrder };
+              updatedBoard.columns.forEach((column) => {
+                const columnTasks = updatedBoard.tasks.filter(
+                  (task) => task.status === column.name
+                );
+
+                const newTasks = columnTasks
+                  .filter(
+                    (task) => !currentOrder[column.name]?.includes(task.id)
+                  )
+                  .map((task) => task.id);
+
+                newOrderMap[column.name] = [
+                  ...newTasks,
+                  ...(currentOrder[column.name] || []).filter((taskId) =>
+                    columnTasks.some((task) => task.id === taskId)
+                  ),
+                ];
+              });
+
+              localStorage.setItem(
+                `board-order-${board.id}`,
+                JSON.stringify(newOrderMap)
+              );
+              setOrderMap(newOrderMap);
+            }
+          }
+        }
+
         const response = await fetch('/api/auth/token');
         const data = await response.json();
 
@@ -278,7 +326,6 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
                   col.name.toLowerCase().replace(/\s+/g, '') === taskStatus
               )?.name;
 
-              // Dla nowych tasków i aktualizacji z websocketa, dodajemy na początku
               setBoard((prev) => ({
                 ...prev,
                 tasks: [taskData.task, ...prev.tasks],
@@ -299,12 +346,10 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
                 return updatedOrder;
               });
             } else if (taskData.type === 'UPDATE') {
-              // Sprawdź czy to nie jest echo naszej własnej aktualizacji
               const isRecentLocalUpdate =
                 lastLocalUpdate.current?.taskId === taskData.task.id &&
                 Date.now() - (lastLocalUpdate.current?.timestamp || 0) < 5000;
 
-              // Aktualizuj tylko stan taska w board, bez zmiany kolejności
               setBoard((prev) => ({
                 ...prev,
                 tasks: prev.tasks.map((task) =>
@@ -312,7 +357,6 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
                 ),
               }));
 
-              // Jeśli to nie jest nasza własna aktualizacja, dopiero wtedy aktualizujemy orderMap
               if (!isRecentLocalUpdate) {
                 const newStatus = taskData.task.status
                   .toLowerCase()
@@ -325,14 +369,12 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
                 setOrderMap((prevOrder) => {
                   const updatedOrder = { ...prevOrder };
 
-                  // Usuń task z poprzedniej kolumny
                   Object.keys(updatedOrder).forEach((columnName) => {
                     updatedOrder[columnName] = updatedOrder[columnName].filter(
                       (id) => id !== taskData.task.id
                     );
                   });
 
-                  // Dodaj task do nowej kolumny na początku (tylko dla zewnętrznych aktualizacji)
                   updatedOrder[newColumnName] = [
                     taskData.task.id,
                     ...(updatedOrder[newColumnName] || []),
@@ -365,7 +407,7 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
         initializationInProgress.current = false;
       }
     };
-  }, [board?.id, onBoardChange]);
+  }, [board?.id]);
 
   useEffect(() => {
     const savedOrder = localStorage.getItem(`board-order-${board.id}`);
@@ -392,11 +434,36 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
 
   const columnWidth = COLUMN_WIDTHS[Math.min(board.columns.length - 1, 4)];
 
+  /**
+   * Handles drag and drop operations in the Kanban board.
+   * For same column moves:
+   * - Updates only the order in localStorage without API calls
+   * For cross-column moves:
+   * - Updates task status via API
+   * - Updates local state and order
+   * - Handles rollback if API call fails
+   * - Manages WebSocket update synchronization using lastLocalUpdate
+   */
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
     if (!destination) return;
 
-    // Zachowaj stan do rollbacku
+    if (source.droppableId === destination.droppableId) {
+      const newOrderMap = { ...orderMap };
+      const column = newOrderMap[source.droppableId];
+
+      column.splice(source.index, 1);
+      column.splice(destination.index, 0, draggableId);
+      newOrderMap[source.droppableId] = column;
+
+      localStorage.setItem(
+        `board-order-${board.id}`,
+        JSON.stringify(newOrderMap)
+      );
+      setOrderMap(newOrderMap);
+      return;
+    }
+
     const rollbackState = {
       orderMap: JSON.parse(JSON.stringify(orderMap)),
       board: JSON.parse(JSON.stringify(board)),
@@ -404,42 +471,32 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
     };
 
     const performRollback = () => {
-      // Przywróć stan orderMap
       setOrderMap(rollbackState.orderMap);
-
-      // Przywróć stan tablicy
       setBoard(rollbackState.board);
-
-      // Przywróć localStorage
       if (rollbackState.localStorage) {
         localStorage.setItem(
           `board-order-${board.id}`,
           rollbackState.localStorage
         );
       }
-
       console.error('❌ Failed to update task. Changes have been reverted.');
     };
 
     try {
-      // Zapisz informację o lokalnej aktualizacji
       lastLocalUpdate.current = {
         taskId: draggableId,
         timestamp: Date.now(),
       };
 
       const newOrderMap = { ...orderMap };
-      // Usuń task ze źródłowej kolumny
       newOrderMap[source.droppableId] = newOrderMap[source.droppableId].filter(
         (id) => id !== draggableId
       );
 
-      // Dodaj task do docelowej kolumny
       const destTasks = newOrderMap[destination.droppableId] || [];
       destTasks.splice(destination.index, 0, draggableId);
       newOrderMap[destination.droppableId] = destTasks;
 
-      // Zaktualizuj status taska
       const updatedTasks = board.tasks.map((task) => {
         if (task.id === draggableId) {
           return {
@@ -450,7 +507,6 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
         return task;
       });
 
-      // Aktualizuj stan lokalny
       localStorage.setItem(
         `board-order-${board.id}`,
         JSON.stringify(newOrderMap)
@@ -463,7 +519,6 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
       };
       setBoard(updatedBoard);
 
-      // Wyślij request do API
       const response = await fetch(`/api/tasks/${draggableId}`, {
         method: 'PATCH',
         headers: {
@@ -478,7 +533,6 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
         throw new Error('Failed to update task status');
       }
 
-      // Wywołaj onBoardChange tylko po pomyślnej aktualizacji API
       onBoardChange?.(updatedBoard);
     } catch (error) {
       performRollback();
