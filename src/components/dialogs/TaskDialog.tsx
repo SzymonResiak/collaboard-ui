@@ -51,13 +51,14 @@ export function TaskDialog({
 
   const { data: groups, isLoading: isLoadingGroups } = useResourceCache<Group>(
     '/api/groups',
-    []
+    [],
+    { autoRefresh: false }
   );
   const {
     data: boards,
     isLoading: isLoadingBoards,
     refresh: refreshBoards,
-  } = useResourceCache<Board>('/api/boards', []);
+  } = useResourceCache<Board>('/api/boards', [], { autoRefresh: false });
 
   const availableGroups = useMemo(() => {
     return groups;
@@ -84,6 +85,29 @@ export function TaskDialog({
       setSelectedBoard(availableBoards[0].id);
     }
   }, [availableBoards]);
+
+  useEffect(() => {
+    console.log('TaskDialog effect triggered, open:', open);
+    let isMounted = true;
+
+    if (open) {
+      const fetchData = async () => {
+        if (!isMounted) return;
+        console.log('TaskDialog fetching data');
+        try {
+          await Promise.all([refreshBoards()]);
+        } catch (error) {
+          console.error('Failed to fetch data:', error);
+        }
+      };
+      fetchData();
+    }
+
+    return () => {
+      console.log('TaskDialog effect cleanup');
+      isMounted = false;
+    };
+  }, [open]);
 
   const handleModeChange = (newMode: 'OWN' | 'GROUP') => {
     setTaskMode(newMode);

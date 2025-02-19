@@ -4,7 +4,10 @@ import { Task } from '@/types/task';
 
 interface WebSocketMessage {
   type: string;
-  data: any;
+  data: {
+    task: Task;
+    operation: 'CREATE' | 'UPDATE';
+  };
   source?: 'websocket' | 'local';
 }
 
@@ -23,8 +26,6 @@ export class WebSocketService {
   private socket: Socket;
   private static instance: WebSocketService;
   private currentBoardId: string | null = null;
-  private reconnectAttempts = 0;
-  private readonly MAX_RECONNECT_ATTEMPTS = 5;
 
   private constructor() {
     const socketUrl =

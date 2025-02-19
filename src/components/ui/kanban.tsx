@@ -241,11 +241,17 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
   const lastLocalUpdate = useRef<{ taskId: string; timestamp: number } | null>(
     null
   );
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (isInitialized.current || initializationInProgress.current) return;
+    console.log('Kanban initialization effect triggered');
+    if (isInitialized.current || initializationInProgress.current) {
+      console.log('Kanban already initialized or in progress');
+      return;
+    }
 
     async function initializeWebSocket() {
+      console.log('Starting WebSocket initialization');
       initializationInProgress.current = true;
 
       try {
@@ -400,6 +406,7 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
     initializeWebSocket();
 
     return () => {
+      console.log('Kanban cleanup');
       if (wsService.current && board?.id) {
         wsService.current.leaveBoard(board.id);
         wsService.current.cleanup();
@@ -424,6 +431,27 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
     }
     setIsHydrated(true);
   }, [board.id]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (wsService.current && board?.id) {
+        wsService.current.leaveBoard(board.id);
+        wsService.current.cleanup();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (wsService.current && board?.id) {
+        wsService.current.leaveBoard(board.id);
+        wsService.current.cleanup();
+        isInitialized.current = false;
+        initializationInProgress.current = false;
+      }
+    };
+  }, [board?.id]);
 
   const columns: KanbanColumn[] = board.columns.map((column) => ({
     id: column.name,
@@ -636,6 +664,12 @@ export function Kanban({ board: initialBoard, onBoardChange }: KanbanProps) {
             </div>
           </DragDropContext>
         </div>
+        {isTaskDialogOpen && (
+          <TaskDialog
+            open={isTaskDialogOpen}
+            onOpenChange={setIsTaskDialogOpen}
+          />
+        )}
       </div>
     </div>
   );
