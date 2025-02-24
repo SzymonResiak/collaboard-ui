@@ -17,13 +17,6 @@ body {
   z-index: 1 !important;
 }
 
-/* task container */
-.task-container {
-  position: relative;
-  z-index: 2;
-  background-color: white !important;
-}
-
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 3px;

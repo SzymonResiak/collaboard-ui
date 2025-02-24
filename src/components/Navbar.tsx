@@ -64,8 +64,7 @@ const Navbar = () => {
             mode="create"
             open={isDialogOpen}
             onOpenChange={setIsDialogOpen}
-            onSubmit={(taskData) => {
-              console.log('Nowe zadanie:', taskData);
+            onSubmit={() => {
               setIsDialogOpen(false);
             }}
           />

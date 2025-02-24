@@ -7,22 +7,20 @@ interface CacheItem<T> {
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minut
 
-// Dodajemy subskrybentów zmian
-const subscribers: Record<string, Set<(data: unknown[]) => void>> = {};
+interface Subscriber<T> {
+  (data: T[]): void;
+}
 
-export function updateCache<T>(key: string, data: T[]) {
-  localStorage.setItem(
-    key,
-    JSON.stringify({
-      data,
-      timestamp: Date.now(),
-    })
-  );
+const subscribers: Record<string, Set<Subscriber<any>>> = {};
 
-  // Powiadom wszystkich subskrybentów o zmianie
-  if (subscribers[key]) {
-    subscribers[key].forEach((callback) => callback(data));
-  }
+export function updateCache<T>(key: string, data: T) {
+  localStorage.setItem(key, JSON.stringify(data));
+  subscribers[key]?.forEach((callback) => callback(data));
+}
+
+export function getCacheData<T>(key: string): T[] | null {
+  const data = localStorage.getItem(key);
+  return data ? JSON.parse(data) : null;
 }
 
 export function useResourceCache<T>(
@@ -31,48 +29,39 @@ export function useResourceCache<T>(
   options = { autoRefresh: true }
 ) {
   const [data, setData] = useState<T[]>(initialData);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const fetchedRef = useRef(false);
-  const lastFetchTime = useRef<number>(0);
-  const MIN_FETCH_INTERVAL = 10000; // 10 seconds
 
   const fetchData = useCallback(
     async (force = false) => {
-      const now = Date.now();
-      console.log(`[${resourceUrl}] Attempting fetch, force: ${force}`);
-
-      if (!force && now - lastFetchTime.current < MIN_FETCH_INTERVAL) {
-        console.log(`[${resourceUrl}] Skipping fetch - too soon`);
-        return;
-      }
-
-      const cachedData = localStorage.getItem(resourceUrl);
-      if (!force && cachedData) {
-        const parsed = JSON.parse(cachedData) as CacheItem<T>;
-        if (now - parsed.timestamp < CACHE_DURATION) {
-          setData(parsed.data);
-          return;
+      // Usuwamy duplikację requestów - jeśli dane są w cache, używamy ich
+      if (!force) {
+        const cachedData = localStorage.getItem(resourceUrl);
+        if (cachedData) {
+          const parsed = JSON.parse(cachedData) as CacheItem<T>;
+          if (Date.now() - parsed.timestamp < CACHE_DURATION) {
+            setData(parsed.data);
+            return;
+          }
         }
       }
 
-      lastFetchTime.current = now;
-      setIsLoading(true);
+      // Nie wykonujemy dodatkowego requestu, jeśli już mamy dane
+      if (!force && data.length > 0) {
+        return;
+      }
+
       try {
         const response = await fetch(resourceUrl);
         if (!response.ok) throw new Error('Failed to fetch data');
 
         const newData = await response.json();
-
-        // Zapisz do localStorage i powiadom subskrybentów
         updateCache(resourceUrl, newData);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Unknown error'));
-      } finally {
-        setIsLoading(false);
       }
     },
-    [resourceUrl]
+    [resourceUrl, data]
   );
 
   useEffect(() => {
@@ -83,7 +72,8 @@ export function useResourceCache<T>(
       subscribers[resourceUrl] = new Set();
     }
 
-    subscribers[resourceUrl].add(setData);
+    const subscriber: Subscriber<T> = (newData: T[]) => setData(newData);
+    subscribers[resourceUrl].add(subscriber);
 
     if (!fetchedRef.current && options.autoRefresh) {
       fetchData(false);
@@ -91,7 +81,7 @@ export function useResourceCache<T>(
     }
 
     return () => {
-      subscribers[resourceUrl].delete(setData);
+      subscribers[resourceUrl].delete(subscriber);
       if (subscribers[resourceUrl].size === 0) {
         delete subscribers[resourceUrl];
       }
@@ -100,7 +90,6 @@ export function useResourceCache<T>(
 
   return {
     data,
-    isLoading,
     error,
     refresh: () => {
       console.log(`[${resourceUrl}] Manual refresh triggered`);

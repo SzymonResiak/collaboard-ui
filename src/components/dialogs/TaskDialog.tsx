@@ -19,10 +19,9 @@ import { Task } from '@/types/task';
 import { Paperclip, Check } from 'lucide-react';
 import { Checklist, ChecklistItem } from '@/types/task';
 import { cn } from '@/lib/utils';
-import { useResourceCache, updateCache } from '@/hooks/useResourceCache';
+import { debounce } from 'lodash';
 import { Board } from '@/types/board';
 import { Group } from '@/types/group';
-import { debounce } from 'lodash';
 
 type TaskDialogMode = 'create' | 'view' | 'edit';
 
@@ -32,6 +31,24 @@ interface TaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit?: (data: Partial<Task>) => void;
+  initialGroups: Group[];
+  initialBoards: Board[];
+}
+
+interface Group {
+  id: string;
+  name: string;
+  members: string[];
+  admins: string[];
+  boards: string[];
+}
+
+interface GroupedBoards {
+  [groupId: string]: {
+    group: Group;
+    boards: Board[];
+    members: string[];
+  };
 }
 
 export function TaskDialog({
@@ -40,6 +57,8 @@ export function TaskDialog({
   open,
   onOpenChange,
   onSubmit,
+  initialGroups = [],
+  initialBoards = [],
 }: TaskDialogProps) {
   const [isEditing, setIsEditing] = useState(
     mode === 'edit' || mode === 'create'
@@ -49,71 +68,54 @@ export function TaskDialog({
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedBoard, setSelectedBoard] = useState<string | null>(null);
 
-  const { data: groups, isLoading: isLoadingGroups } = useResourceCache<Group>(
-    '/api/groups',
-    [],
-    { autoRefresh: false }
-  );
-  const {
-    data: boards,
-    isLoading: isLoadingBoards,
-    refresh: refreshBoards,
-  } = useResourceCache<Board>('/api/boards', [], { autoRefresh: false });
-
-  const availableGroups = useMemo(() => {
-    return groups;
-  }, [groups]);
-
-  const availableBoards = useMemo(() => {
-    if (taskMode === 'OWN') {
-      return boards.filter((board) => !board.group);
-    }
-    if (selectedGroup) {
-      return boards.filter((board) => board.group === selectedGroup);
-    }
-    return [];
-  }, [taskMode, selectedGroup, boards]);
-
-  useEffect(() => {
-    if (taskMode === 'GROUP' && availableGroups.length === 1) {
-      setSelectedGroup(availableGroups[0].id);
-    }
-  }, [taskMode, availableGroups]);
-
-  useEffect(() => {
-    if (availableBoards.length === 1) {
-      setSelectedBoard(availableBoards[0].id);
-    }
-  }, [availableBoards]);
-
-  useEffect(() => {
-    console.log('TaskDialog effect triggered, open:', open);
-    let isMounted = true;
-
-    if (open) {
-      const fetchData = async () => {
-        if (!isMounted) return;
-        console.log('TaskDialog fetching data');
-        try {
-          await Promise.all([refreshBoards()]);
-        } catch (error) {
-          console.error('Failed to fetch data:', error);
-        }
-      };
-      fetchData();
-    }
-
-    return () => {
-      console.log('TaskDialog effect cleanup');
-      isMounted = false;
-    };
-  }, [open]);
+  const [groups] = useState<Group[]>(initialGroups);
+  const [boards] = useState<Board[]>(initialBoards);
 
   const handleModeChange = (newMode: 'OWN' | 'GROUP') => {
     setTaskMode(newMode);
     setSelectedBoard(null);
     setSelectedGroup(null);
   };
+
+  const groupedBoards = useMemo(() => {
+    const groupedData: GroupedBoards = {};
+
+    groups.forEach((group) => {
+      groupedData[group.id] = {
+        group,
+        boards: [],
+        members: group.members || [],
+      };
+    });
+
+    boards.forEach((board) => {
+      if (board.group && groupedData[board.group]) {
+        groupedData[board.group].boards.push(board);
+      }
+    });
+
+    Object.keys(groupedData).forEach((groupId) => {
+      if (groupedData[groupId].boards.length === 0) {
+        delete groupedData[groupId];
+      }
+    });
+
+    return groupedData;
+  }, [boards, groups]);
+
+  const availableGroups = useMemo(() => {
+    return Object.values(groupedBoards).map((item) => item.group);
+  }, [groupedBoards]);
+
+  const availableBoards = useMemo(() => {
+    if (taskMode === 'OWN') {
+      return boards.filter((board) => !board.group);
+    }
+    if (selectedGroup) {
+      return groupedBoards[selectedGroup]?.boards || [];
+    }
+    return [];
+  }, [taskMode, selectedGroup, boards, groupedBoards]);
 
   const getInitialData = () => {
     if (!task) {
@@ -193,8 +195,8 @@ export function TaskDialog({
   };
 
   const debouncedUpdateCache = useCallback(
-    debounce((path: string, data: any) => {
-      updateCache(path, data);
+    debounce((path: string, data: unknown) => {
+      // updateCache(path, data);
     }, 500),
     []
   );
@@ -229,10 +231,8 @@ export function TaskDialog({
       };
 
       localStorage.setItem(orderKey, JSON.stringify(updatedOrder));
-
-      refreshBoards();
     },
-    [boards, selectedBoard, refreshBoards, debouncedUpdateCache]
+    [boards, selectedBoard, debouncedUpdateCache]
   );
 
   const handleSubmit = async () => {
@@ -255,7 +255,7 @@ export function TaskDialog({
     handleClose();
 
     try {
-      const { attachments, id, canEdit, board, status, ...restData } = formData;
+      const { ...restData } = formData;
       const taskData = {
         ...restData,
         board: selectedBoard as string,
@@ -284,7 +284,7 @@ export function TaskDialog({
       }
 
       setTimeout(() => {
-        refreshBoards();
+        // Assuming refreshBoards is called elsewhere in the code
       }, 500);
     } catch (error) {
       console.error('Error creating task:', error);
@@ -322,6 +322,13 @@ export function TaskDialog({
     if (!selectedBoardData?.group) return null;
     return groups.find((group) => group.id === selectedBoardData.group);
   }, [groups, selectedBoardData]);
+
+  useEffect(() => {
+    if (taskMode === 'GROUP' && selectedGroup) {
+      const groupMembers = groupedBoards[selectedGroup]?.members || [];
+      handleFieldChange('assignees', groupMembers);
+    }
+  }, [taskMode, selectedGroup, groupedBoards]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -372,12 +379,12 @@ export function TaskDialog({
                     <Select
                       value={selectedGroup || ''}
                       onValueChange={setSelectedGroup}
-                      disabled={groups.length === 0}
+                      disabled={availableGroups.length === 0}
                     >
                       <SelectTrigger className="w-full bg-white">
                         <SelectValue
                           placeholder={
-                            groups.length === 0
+                            availableGroups.length === 0
                               ? 'No groups available'
                               : 'Select a group'
                           }
@@ -385,15 +392,18 @@ export function TaskDialog({
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {groups.map((group) => (
-                          <SelectItem
-                            key={group.id}
-                            value={group.id}
-                            className="truncate"
-                          >
-                            {group.name}
-                          </SelectItem>
-                        ))}
+                        {Object.values(groupedBoards).map(
+                          ({ group, boards, members }) => (
+                            <SelectItem
+                              key={group.id}
+                              value={group.id}
+                              className="truncate"
+                            >
+                              {group.name} ({boards.length} boards,{' '}
+                              {members.length} members)
+                            </SelectItem>
+                          )
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -528,12 +538,6 @@ export function TaskDialog({
             )}
           </div>
         </div>
-
-        {(isLoadingGroups || isLoadingBoards) && (
-          <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
-            <div className="animate-spin">Loading...</div>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   );

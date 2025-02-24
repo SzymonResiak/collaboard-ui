@@ -1,5 +1,3 @@
-import { UserDto } from './user';
-
 export interface Task {
   id?: string;
   title: string;

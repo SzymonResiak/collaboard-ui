@@ -15,14 +15,19 @@ export default function BoardPage() {
     const fetchBoard = async () => {
       try {
         const encodedName = encodeURIComponent(boardName);
-        const response = await fetch(`/api/boards/name/${encodedName}`);
-        const data = await response.json();
+        const response = await fetch(`/api/boards/name/${encodedName}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            Pragma: 'no-cache',
+          },
+        });
 
-        if (data.error) {
-          console.error('Error fetching board:', data.error);
-          return;
+        if (!response.ok) {
+          throw new Error('Failed to fetch board');
         }
 
+        const data = await response.json();
         setBoard(data);
       } catch (error) {
         console.error('Error fetching board:', error);
@@ -35,5 +40,5 @@ export default function BoardPage() {
 
   if (!board) return null;
 
-  return <Kanban board={board} onBoardChange={setBoard} />;
+  return <Kanban board={board} />;
 }

@@ -22,24 +22,26 @@ export async function GET(
       {
         headers: {
           Authorization: `Bearer ${token.value}`,
-          'Cache-Control': 'no-store, must-revalidate',
+          'Content-Type': 'application/json',
         },
       }
     );
 
-    const data = await response.json();
-
     if (!response.ok) {
-      return NextResponse.json(
-        { error: data.error || 'Failed to fetch board details' },
-        { status: response.status }
-      );
+      throw new Error(`API error: ${response.statusText}`);
     }
 
-    return NextResponse.json(data);
-  } catch (err) {
+    const data = await response.json();
+    return new NextResponse(JSON.stringify(data), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=59',
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching board:', error);
     return NextResponse.json(
-      { error: 'An error occurred while fetching the board', err },
+      { error: 'Failed to fetch board' },
       { status: 500 }
     );
   }

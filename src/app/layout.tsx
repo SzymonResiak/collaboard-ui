@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 const nunito = Nunito({
   subsets: ['latin'],
   variable: '--font-nunito',
+  preload: true,
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -21,7 +23,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={cn(nunito.variable, 'h-screen flex flex-col overflow-hidden')}>
+      <body
+        className={cn(
+          nunito.variable,
+          'h-screen flex flex-col overflow-hidden'
+        )}
+      >
         <Navbar />
         {children}
       </body>
