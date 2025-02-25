@@ -80,6 +80,7 @@ export async function GET(
 
     return NextResponse.json(data);
   } catch (error) {
+    console.error('Error fetching board:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

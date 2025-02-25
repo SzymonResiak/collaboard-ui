@@ -1,6 +1,6 @@
 'use client';
 
-import { Board, Column } from '@/types/board';
+import { Column } from '@/types/board';
 import { Heart, MoreVertical } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useRouter } from 'next/navigation';
@@ -29,7 +29,6 @@ export function BoardCard({
   tasks,
   favourite,
   onFavouriteChange,
-  onClick,
 }: BoardCardProps) {
   const router = useRouter();
 
@@ -43,7 +42,7 @@ export function BoardCard({
       e.stopPropagation();
       return;
     }
-    router.push(`/boards/${encodeURIComponent(name)}`);
+    router.push(`/boards/${id}`);
   };
 
   const handleFavouriteClick = async (

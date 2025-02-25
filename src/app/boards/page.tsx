@@ -141,11 +141,7 @@ export default function BoardsPage() {
                           onFavouriteChange={(newValue: boolean) =>
                             handleFavouriteChange(board.id, newValue)
                           }
-                          onClick={() =>
-                            router.push(
-                              `/boards/${encodeURIComponent(board.name)}`
-                            )
-                          }
+                          onClick={() => router.push(`/boards/id/${board.id}`)}
                         />
                       </motion.div>
                     ))}

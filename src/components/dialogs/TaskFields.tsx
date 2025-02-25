@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Member } from '@/types/board';
 
 interface TaskFieldsProps {
   task?: Task;
@@ -24,7 +25,7 @@ interface TaskFieldsProps {
     title: boolean;
     checklistNames: number[];
   };
-  availableAssignees: string[];
+  availableAssignees: Member[];
   mode?: 'OWN' | 'GROUP';
 }
 
@@ -185,52 +186,73 @@ export function TaskFields({
           <div className="space-y-2">
             <Label>Assignees</Label>
             <Select
-              defaultValue={task?.assignees?.[0]}
+              value={task?.assignees?.[0] || ''}
               onValueChange={(value) => {
-                onChange?.('assignees', [value]);
+                const currentAssignees = task?.assignees || [];
+                const newAssignees = currentAssignees.includes(value)
+                  ? currentAssignees.filter((id) => id !== value)
+                  : [...currentAssignees, value];
+                onChange?.('assignees', newAssignees);
               }}
-              disabled={!isEditing || availableAssignees.length === 0}
             >
-              <SelectTrigger className="w-full bg-white">
+              <SelectTrigger className="w-full">
                 <SelectValue
                   placeholder={
-                    availableAssignees.length === 0
-                      ? 'No available assignees'
-                      : 'Select assignees'
+                    task?.assignees?.length
+                      ? `${task.assignees.length} assignees selected`
+                      : 'Select assignee'
                   }
                 />
               </SelectTrigger>
               <SelectContent>
-                {availableAssignees.map((userId) => (
-                  <SelectItem key={userId} value={userId}>
+                {availableAssignees.map((member) => (
+                  <SelectItem key={member.id} value={member.id}>
                     <div className="flex items-center gap-2">
-                      <span>{userId}</span>
+                      <input
+                        type="checkbox"
+                        checked={task?.assignees?.includes(member.id)}
+                        className="mr-2"
+                        readOnly
+                      />
+                      <Avatar name={member.name} size="sm" />
+                      <span>{member.name}</span>
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {Array.isArray(task?.assignees) && task.assignees.length > 0 && (
+
+            {task?.assignees && task.assignees.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {task.assignees.map((userId) => (
-                  <div
-                    key={userId}
-                    className="flex items-center gap-1 bg-gray-100 text-gray-700 rounded-full px-2 py-1 text-sm"
-                  >
-                    <span>{userId}</span>
-                    <button
-                      onClick={() => {
-                        const newAssignees = task.assignees.filter(
-                          (id) => id !== userId
-                        );
-                        onChange?.('assignees', newAssignees);
-                      }}
-                      className="ml-1 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
+                {task.assignees.map((assigneeId) => {
+                  const member = availableAssignees.find(
+                    (m) => m.id === assigneeId
+                  );
+                  return (
+                    member && (
+                      <div
+                        key={assigneeId}
+                        className="flex items-center gap-1 bg-gray-100 text-gray-700 rounded-full px-2 py-1 text-sm"
+                      >
+                        <Avatar name={member.name} size="sm" />
+                        <span>{member.name}</span>
+                        {isEditing && (
+                          <button
+                            onClick={() => {
+                              const newAssignees = task.assignees.filter(
+                                (id) => id !== assigneeId
+                              );
+                              onChange?.('assignees', newAssignees);
+                            }}
+                            className="ml-1 text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  );
+                })}
               </div>
             )}
           </div>

@@ -64,9 +64,7 @@ const Navbar = () => {
             mode="create"
             open={isDialogOpen}
             onOpenChange={setIsDialogOpen}
-            onSubmit={() => {
-              setIsDialogOpen(false);
-            }}
+            onSubmit={() => setIsDialogOpen(false)}
           />
         </div>
       </div>

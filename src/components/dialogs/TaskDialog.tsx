@@ -21,7 +21,7 @@ import { Checklist, ChecklistItem } from '@/types/task';
 import { cn } from '@/lib/utils';
 import { debounce } from 'lodash';
 import { Board } from '@/types/board';
-import { Group } from '@/types/group';
+import { useBoardsData } from '@/hooks/useBoardsData';
 
 type TaskDialogMode = 'create' | 'view' | 'edit';
 
@@ -31,24 +31,12 @@ interface TaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit?: (data: Partial<Task>) => void;
-  initialGroups: Group[];
   initialBoards: Board[];
-}
-
-interface Group {
-  id: string;
-  name: string;
-  members: string[];
-  admins: string[];
-  boards: string[];
-}
-
-interface GroupedBoards {
-  [groupId: string]: {
-    group: Group;
+  initialGroups?: {
+    id: string;
+    name: string;
     boards: Board[];
-    members: string[];
-  };
+  }[];
 }
 
 export function TaskDialog({
@@ -57,8 +45,8 @@ export function TaskDialog({
   open,
   onOpenChange,
   onSubmit,
-  initialGroups = [],
   initialBoards = [],
+  initialGroups = [],
 }: TaskDialogProps) {
   const [isEditing, setIsEditing] = useState(
     mode === 'edit' || mode === 'create'
@@ -68,54 +56,20 @@ export function TaskDialog({
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedBoard, setSelectedBoard] = useState<string | null>(null);
 
-  const [groups] = useState<Group[]>(initialGroups);
-  const [boards] = useState<Board[]>(initialBoards);
-
-  const handleModeChange = (newMode: 'OWN' | 'GROUP') => {
-    setTaskMode(newMode);
-    setSelectedBoard(null);
-    setSelectedGroup(null);
-  };
-
-  const groupedBoards = useMemo(() => {
-    const groupedData: GroupedBoards = {};
-
-    groups.forEach((group) => {
-      groupedData[group.id] = {
-        group,
-        boards: [],
-        members: group.members || [],
-      };
-    });
-
-    boards.forEach((board) => {
-      if (board.group && groupedData[board.group]) {
-        groupedData[board.group].boards.push(board);
-      }
-    });
-
-    Object.keys(groupedData).forEach((groupId) => {
-      if (groupedData[groupId].boards.length === 0) {
-        delete groupedData[groupId];
-      }
-    });
-
-    return groupedData;
-  }, [boards, groups]);
+  const { getAvailableBoards, getBoardMembers, getGroups } = useBoardsData();
 
   const availableGroups = useMemo(() => {
-    return Object.values(groupedBoards).map((item) => item.group);
-  }, [groupedBoards]);
+    return getGroups();
+  }, [getGroups]);
 
   const availableBoards = useMemo(() => {
-    if (taskMode === 'OWN') {
-      return boards.filter((board) => !board.group);
-    }
-    if (selectedGroup) {
-      return groupedBoards[selectedGroup]?.boards || [];
-    }
-    return [];
-  }, [taskMode, selectedGroup, boards, groupedBoards]);
+    return getAvailableBoards(taskMode, selectedGroup || undefined);
+  }, [taskMode, selectedGroup, getAvailableBoards]);
+
+  const availableMembers = useMemo(() => {
+    if (!selectedBoard) return [];
+    return getBoardMembers(selectedBoard);
+  }, [selectedBoard, getBoardMembers]);
 
   const getInitialData = () => {
     if (!task) {
@@ -203,7 +157,9 @@ export function TaskDialog({
 
   const updateLocalBoards = useCallback(
     (newTask: Task) => {
-      const boardToUpdate = boards.find((board) => board.id === selectedBoard);
+      const boardToUpdate = initialBoards.find(
+        (board) => board.id === selectedBoard
+      );
       if (!boardToUpdate) return;
 
       const updatedBoard = {
@@ -211,7 +167,7 @@ export function TaskDialog({
         tasks: [newTask, ...boardToUpdate.tasks],
       };
 
-      const cachedBoards = boards.map((board) =>
+      const cachedBoards = initialBoards.map((board) =>
         board.id === selectedBoard ? updatedBoard : board
       );
 
@@ -232,7 +188,7 @@ export function TaskDialog({
 
       localStorage.setItem(orderKey, JSON.stringify(updatedOrder));
     },
-    [boards, selectedBoard, debouncedUpdateCache]
+    [initialBoards, selectedBoard, debouncedUpdateCache]
   );
 
   const handleSubmit = async () => {
@@ -315,20 +271,16 @@ export function TaskDialog({
   ]);
 
   const selectedBoardData = useMemo(() => {
-    return boards.find((board) => board.id === selectedBoard);
-  }, [boards, selectedBoard]);
-
-  const selectedGroupData = useMemo(() => {
-    if (!selectedBoardData?.group) return null;
-    return groups.find((group) => group.id === selectedBoardData.group);
-  }, [groups, selectedBoardData]);
+    return initialBoards.find((board) => board.id === selectedBoard);
+  }, [initialBoards, selectedBoard]);
 
   useEffect(() => {
-    if (taskMode === 'GROUP' && selectedGroup) {
-      const groupMembers = groupedBoards[selectedGroup]?.members || [];
-      handleFieldChange('assignees', groupMembers);
+    if (taskMode === 'GROUP' && availableGroups.length === 1) {
+      setSelectedGroup(availableGroups[0].id);
+    } else if (taskMode === 'OWN' && initialBoards.length === 1) {
+      setSelectedBoard(initialBoards[0].id);
     }
-  }, [taskMode, selectedGroup, groupedBoards]);
+  }, [taskMode, availableGroups, initialBoards]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -350,7 +302,7 @@ export function TaskDialog({
                         ? 'bg-black text-white'
                         : 'bg-transparent text-black hover:bg-gray-200'
                     )}
-                    onClick={() => handleModeChange('OWN')}
+                    onClick={() => setTaskMode('OWN')}
                   >
                     OWN
                   </button>
@@ -362,7 +314,7 @@ export function TaskDialog({
                         ? 'bg-black text-white'
                         : 'bg-transparent text-black hover:bg-gray-200'
                     )}
-                    onClick={() => handleModeChange('GROUP')}
+                    onClick={() => setTaskMode('GROUP')}
                   >
                     GROUP
                   </button>
@@ -372,78 +324,37 @@ export function TaskDialog({
               <div className="flex gap-4 w-full">
                 {taskMode === 'GROUP' && (
                   <div className="flex-1 space-y-2 min-w-0">
-                    <Label className="flex items-center gap-1">
-                      Group
-                      <span className="text-black-500">*</span>
-                    </Label>
+                    <Label>Group</Label>
                     <Select
                       value={selectedGroup || ''}
                       onValueChange={setSelectedGroup}
-                      disabled={availableGroups.length === 0}
                     >
-                      <SelectTrigger className="w-full bg-white">
-                        <SelectValue
-                          placeholder={
-                            availableGroups.length === 0
-                              ? 'No groups available'
-                              : 'Select a group'
-                          }
-                          className="truncate"
-                        />
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select group" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.values(groupedBoards).map(
-                          ({ group, boards, members }) => (
-                            <SelectItem
-                              key={group.id}
-                              value={group.id}
-                              className="truncate"
-                            >
-                              {group.name} ({boards.length} boards,{' '}
-                              {members.length} members)
-                            </SelectItem>
-                          )
-                        )}
+                        {availableGroups.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                 )}
 
-                <div
-                  className={cn(
-                    'space-y-2 min-w-0',
-                    taskMode === 'GROUP' ? 'flex-1' : 'w-full'
-                  )}
-                >
-                  <Label className="flex items-center gap-1">
-                    Board
-                    <span className="text-black-500">*</span>
-                  </Label>
+                <div className="flex-1 space-y-2 min-w-0">
+                  <Label>Board</Label>
                   <Select
                     value={selectedBoard || ''}
                     onValueChange={setSelectedBoard}
-                    disabled={
-                      availableBoards.length === 0 ||
-                      (taskMode === 'GROUP' && !selectedGroup)
-                    }
                   >
-                    <SelectTrigger className="w-full bg-white">
-                      <SelectValue
-                        placeholder={
-                          availableBoards.length === 0
-                            ? 'No boards available'
-                            : 'Select a board'
-                        }
-                        className="truncate"
-                      />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select board" />
                     </SelectTrigger>
                     <SelectContent>
                       {availableBoards.map((board) => (
-                        <SelectItem
-                          key={board.id}
-                          value={board.id}
-                          className="truncate"
-                        >
+                        <SelectItem key={board.id} value={board.id}>
                           {board.name}
                         </SelectItem>
                       ))}
@@ -459,7 +370,7 @@ export function TaskDialog({
             isEditing={isEditing}
             onChange={handleFieldChange}
             validationErrors={validationErrors}
-            availableAssignees={selectedGroupData?.members || []}
+            availableAssignees={availableMembers}
             mode={taskMode}
           />
         </div>

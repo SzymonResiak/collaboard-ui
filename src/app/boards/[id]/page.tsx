@@ -8,14 +8,13 @@ import { Board } from '@/types/board';
 export default function BoardPage() {
   const router = useRouter();
   const params = useParams();
-  const boardName = params.name as string;
+  const boardId = params.id as string;
   const [board, setBoard] = useState<Board | null>(null);
 
   useEffect(() => {
     const fetchBoard = async () => {
       try {
-        const encodedName = encodeURIComponent(boardName);
-        const response = await fetch(`/api/boards/name/${encodedName}`, {
+        const response = await fetch(`/api/boards/${boardId}`, {
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache',
@@ -36,7 +35,7 @@ export default function BoardPage() {
     };
 
     fetchBoard();
-  }, [boardName, router]);
+  }, [boardId, router]);
 
   if (!board) return null;
 
